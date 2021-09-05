@@ -6,6 +6,7 @@ from torch.optim import AdamW
 from torch.nn.utils import clip_grad_norm_
 
 from sklearn.metrics import accuracy_score
+from transformers import BertModel
 
 from nlkit.trainer import BaseTrainer
 from nlkit.utils import (
@@ -33,7 +34,9 @@ class Trainer(BaseTrainer):
             self.config.device, None, self.config.epoch, 
             self.config.model_path,
         )
-        
+        self.model.bert_model = BertModel.from_pretrained(
+            "hfl/chinese-bert-wwm-ext"
+        )
         self.loss_record_on_valid = []
         self.train_record = []
         self.log_file = open(self.config.log_path, "a+")
@@ -57,7 +60,7 @@ class Trainer(BaseTrainer):
             raise ValueError(f"invalid phase:{phase.name}")
         
         for k, v in log_info.items():
-            if k not in {"curr_loss", "avg_loss"}:
+            if k not in {"curr_loss", "avg_loss", "acc"}:
                 continue
             
             self.summary_writer.add_scalar(

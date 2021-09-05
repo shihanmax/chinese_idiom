@@ -48,7 +48,12 @@ class Inference(object):
         self.trainer.model.eval()
         
         for data in tqdm(data_loader):
-            _, _, pred = self.trainer.forward_model(data, with_loss=False)
+            data = {
+                k: v.to(self.trainer.config.device) for k, v in data.items()
+            }
+            with torch.no_grad():
+                _, _, pred = self.trainer.forward_model(data, with_loss=False)
+                
             pred_res.append(pred.squeeze())
 
         self.trainer.model.train()
