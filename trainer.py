@@ -36,7 +36,8 @@ class Trainer(BaseTrainer):
         )
         self.model.bert_model = BertModel.from_pretrained(
             "hfl/chinese-bert-wwm-ext"
-        )
+        ).to(self.config.device)
+        
         self.loss_record_on_valid = []
         self.train_record = []
         self.log_file = open(self.config.log_path, "a+")
@@ -97,7 +98,10 @@ class Trainer(BaseTrainer):
                 self.global_test_step += 1
 
             # data to device
-            data = {key: value.to(self.device) for key, value in data.items()}
+            data = {
+                key: value.to(self.config.device) 
+                for key, value in data.items()
+            }
 
             # forward the model
             if phase == Phase.TRAIN:
