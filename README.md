@@ -1,0 +1,3 @@
+todo:
+- data to device
+- 
