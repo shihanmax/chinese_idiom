@@ -176,15 +176,18 @@ class Trainer(BaseTrainer):
         
         return False
 
-    def forward_model(self, data):
+    def forward_model(self, data, with_loss=True):
         probs = self.model(
             input_ids=data["input_ids"],
             token_type_ids=data["token_type_ids"], 
             attention_mask=data["attention_mask"],
             position_ids=data["position_ids"],
         )
-        pred = probs.gt(0.5).long()
+        pred = probs.argmax(dim=-1)
         
-        loss = self.model.forward_loss(probs, data["label"])
+        if with_loss:
+            loss = self.model.forward_loss(probs, data["label"])
+        else:
+            loss = None
         
         return probs, loss, pred

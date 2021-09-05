@@ -31,7 +31,7 @@ class Inference(object):
         all_samples = []
         for i in tqdm(range(length)):
             samples = self.raw_data_provider.build_data_samples_for_single(
-                test_df.iloc[i], expected_extend_neg=-1, unique=False
+                test_df.iloc[i],
             )
             all_samples.extend(samples)
 
@@ -48,19 +48,12 @@ class Inference(object):
         self.trainer.model.eval()
         
         for data in tqdm(data_loader):
-            probs, _, _ = self.trainer.forward_model(data)
-            pred_res.append(probs.squeeze())
+            _, _, pred = self.trainer.forward_model(data, with_loss=False)
+            pred_res.append(pred.squeeze())
 
         self.trainer.model.train()
         
-        all_pred = torch.cat(pred_res, dim=0).tolist()
-
-        answer_idx = []
-        for i in range(10):
-            curr_prob = []
-            for j in range(4):
-                curr_prob.append(all_pred[i * 4 + j])
-            answer_idx.append(curr_prob.index(max(curr_prob)))
+        answer_idx = torch.cat(pred_res, dim=0).tolist()
 
         answers = []
         for i, idx in enumerate(answer_idx):

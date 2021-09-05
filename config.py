@@ -9,10 +9,10 @@ class Config(object):
     num_warmup_epochs = 3
     not_early_stopping_at_first = 5
     es_with_no_improvement_after = 5
-    start_gen_submit = 3
+    start_gen_submit = 1
     batch_size = 16
     
-    verbose = 3
+    verbose = 50
     
     lr = 3e-5
     gradient_clip = 5

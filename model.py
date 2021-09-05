@@ -75,29 +75,33 @@ def binary_focal_loss_with_logits(
 
 class BinaryCls(nn.Module):
     
-    def __init__(self, bert_model, bert_out_dim, hidden_dim, cls_dim=1):
+    def __init__(self, bert_model, bert_out_dim, hidden_dim, cls_dim=4):
         super(BinaryCls, self).__init__()
         self.bert_model = bert_model
         
         self.linear = nn.Linear(bert_out_dim, hidden_dim)
         self.out_linear = nn.Linear(hidden_dim, cls_dim)
         self.tanh = nn.Tanh()
-        self.sigmoid = nn.Sigmoid()
         
         self.bce = nn.BCELoss()
-
+        self.ce = nn.CrossEntropyLoss()
+        self.dropout = nn.Dropout(p=0.1)
+        
     def forward(self, **input):
         bert_out = self.bert_model(**input)  # bs, seq_len, hidden
         
         cls_repr = bert_out.pooler_output  # bs, hidden
         
+        cls_repr = self.dropout(cls_repr)
+        
         hid = self.tanh(self.linear(cls_repr))
-        out_prob = self.sigmoid(self.out_linear(hid))
+        out_prob = self.out_linear(hid)  # bs, 4
         
         return out_prob
         
     def forward_loss(self, out_prob, label):
-        loss = binary_focal_loss_with_logits(
-            input=out_prob, target=label, input_prob=False, reduction="sum",
-        )
+        # loss = binary_focal_loss_with_logits(
+        #     input=out_prob, target=label, input_prob=False, reduction="sum",
+        # )
+        loss = self.ce(out_prob, label)
         return loss

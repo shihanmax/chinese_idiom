@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 import torch
 import torch.nn as nn
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from transformers import BertTokenizer
@@ -30,61 +31,28 @@ class RawDataProvider(object):
     
         return list(idiom_set)
     
-    def build_data_samples_for_single(
-        self, single_df, expected_extend_neg, unique=True, max_neg_count=99,
-    ):
-            
-        def get_global_negative_sample(expected):
-            # TODO: get hard neg with cos similarity
-            samples = random.sample(self.all_idiom, expected)
-            return samples
-    
+    def build_data_samples_for_single(self, single_df):
+        # todo random replace negative 
         text = single_df["text"]
         candidate = eval(single_df["candidate"])
         label = single_df["label"]
-
-        if expected_extend_neg > 0:
-            # logger.info(f"进行额外负采样，长度:{expected_extend_neg}")
-            extend_negative = get_global_negative_sample(expected_extend_neg)
-            candidate.extend(extend_negative)
-            random.shuffle(candidate)
-            
-        neg_count = 0
-        samples = []
-        if unique:
-            candidate = set(candidate)
-            
-        for s in candidate:
-            if s == label:
-                samples.append([text, s, 1])
-            else:
-                if neg_count < max_neg_count:
-                    samples.append([text, s, 0])
-                    neg_count += 1
+        
+        label_idx = candidate.index(label) if isinstance(label, str) else -1
+        samples = [[text, candidate, label_idx]]
 
         return samples
 
-    def get_all_samples(self, df, expected_extend_neg, max_neg_count):
+    def get_all_samples(self, df):
         samples = []
         
         for i in range(len(df)):
-            samples.extend(
-                self.build_data_samples_for_single(
-                    df.iloc[i], expected_extend_neg, max_neg_count
-                )
-            )
+            samples.extend(self.build_data_samples_for_single(df.iloc[i]))
 
         return samples
 
-    def get_train_valid_test_samples(
-        self, expected_extend_neg, max_neg_count, valid_rate=0.1,
-    ):
-        train_samples = self.get_all_samples(
-            self.train_df, expected_extend_neg, max_neg_count,
-        )
-        test_samples = self.get_all_samples(
-            self.test_df, expected_extend_neg, max_neg_count,
-        )
+    def get_train_valid_test_samples(self, valid_rate=0.1):
+        train_samples = self.get_all_samples(self.train_df)
+        test_samples = self.get_all_samples(self.test_df)
         
         valid_len = int(len(train_samples) * valid_rate)
         
@@ -121,11 +89,28 @@ class IdiomDataset(Dataset):
         return self.build(self.samples[item])
     
     def build(self, sample):
-        data = self.tokenizer.encode_plus(
-            *sample[:2], max_length=self.max_length, truncation=True, 
-            return_tensors="pt",
-        )
+        data = {
+            "input_ids": [],
+            "token_type_ids": [],
+            "attention_mask": [],
+        }
         
+        text_encoded = self.tokenizer.encode_plus(sample[0])
+        choice_encoded = self.tokenizer.batch_encode_plus(sample[1])
+        
+        for k, v in text_encoded.items():
+            data[k].extend(v)
+        
+        for k, vs in choice_encoded.items():
+            for idx, v in enumerate(vs, start=1):
+                # if k == "token_type_ids":
+                #     data[k].extend([idx + i for i in v[1:]])
+                # else:
+                data[k].extend(v[1:])
+
+        for k, v in data.items():
+            data[k] = torch.tensor(v)
+            
         data["label"] = torch.tensor(sample[-1]).long()
         data["position_ids"] = torch.arange(0, data["input_ids"].shape[-1])
         
@@ -160,9 +145,10 @@ def collate_fn(batch):
 if __name__ == "__main__":
     rdp = RawDataProvider("./data/train.csv", "./data/test.csv")
 
-    a, b, c = rdp.get_train_valid_test_samples(expected_extend_neg=2)
+    a, b, c = rdp.get_train_valid_test_samples()
     tokenizer = BertTokenizer.from_pretrained("hfl/chinese-bert-wwm-ext")
     trainset = IdiomDataset(a, tokenizer=tokenizer, max_length=512)
+
     dl = DataLoader(trainset, batch_size=3, collate_fn=collate_fn)
     
     for i in dl:
